@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MetricBadge } from "@/components/MetricBadge";
 import { RatingBadge } from "@/components/RatingBadge";
-import { getStockDetail } from "@/lib/dummy-data";
+import { getStockDetail } from "@/lib/repositories/stock-repository";
 
 // STOCK（"/stocks/[code]"）
 // 役割: 1銘柄の詳細（注目理由・各評価・主要指標・リスク）を表示する。
@@ -20,7 +20,7 @@ export default async function StockPage({
   params: Promise<{ code: string }>;
 }) {
   const { code } = await params;
-  const stock = getStockDetail(code);
+  const stock = await getStockDetail(code);
 
   if (!stock) {
     notFound();

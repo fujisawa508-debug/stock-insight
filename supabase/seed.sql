@@ -91,3 +91,12 @@ values
   ('11111111-1111-1111-1111-111111111003', 3000, 34.7, 3.2, 8.1, 40, '2026-08-27T00:00:00Z'),
   ('11111111-1111-1111-1111-111111111004', 1200, 11.8, 0.9, 5.4, -12, '2026-08-27T00:00:00Z')
 on conflict (analysis_item_id) do nothing;
+
+-- review_notes ----------------------------------------------------------
+-- 1 analysis_set : 1 note。dummy-data.ts の reviewNotesBySet と同じ内容。
+insert into review_notes (analysis_set_id, note) values
+  (
+    'ai-2026-08',
+    'AI需要→上方修正。注目理由は有効だった。B社は業績堅調だが市場期待には届かず。C社は高リスク判断が妥当でテーマ全体が上昇。D社は割安だけでは不十分で、利益悪化を見落としていた。'
+  )
+on conflict (analysis_set_id) do nothing;

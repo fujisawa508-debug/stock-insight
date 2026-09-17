@@ -1,23 +1,24 @@
 import { notFound } from "next/navigation";
 import { StockCompareRow } from "@/components/StockCompareRow";
-import { getThemeById, getThemeStocks } from "@/lib/dummy-data";
+import { getThemeById, getThemeStocks } from "@/lib/repositories/theme-repository";
 
 // THEME（"/themes/[id]"）
 // 役割: 選択テーマに紐づく銘柄を、成長性・割高感・注目理由という同じ軸で比較表示する。
 // STOCK 画面への入口。
+// テーマ・銘柄一覧は Supabase (theme-repository.ts) から取得する。
 export default async function ThemePage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const theme = getThemeById(id);
+  const theme = await getThemeById(id);
 
   if (!theme) {
     notFound();
   }
 
-  const stocks = getThemeStocks(theme.id);
+  const stocks = await getThemeStocks(theme.id);
 
   return (
     <div className="flex flex-col gap-6">

@@ -188,7 +188,6 @@ const reviewRows: Record<string, ReviewRow[]> = {
       currentPrice: 2400,
       changeRate: 20,
       judgmentAtAnalysis: "成長 ◎ / 割高 △",
-      reviewNote: "AI需要→上方修正。注目理由は有効だった。",
     },
     {
       stockCode: "B002",
@@ -197,7 +196,6 @@ const reviewRows: Record<string, ReviewRow[]> = {
       currentPrice: 1350,
       changeRate: -10,
       judgmentAtAnalysis: "成長 ○ / 財務 ○",
-      reviewNote: "業績は堅調だが市場期待には届かなかった。",
     },
     {
       stockCode: "C003",
@@ -206,7 +204,6 @@ const reviewRows: Record<string, ReviewRow[]> = {
       currentPrice: 4200,
       changeRate: 40,
       judgmentAtAnalysis: "リスク 高",
-      reviewNote: "高リスク判断は妥当だった。テーマ全体が上昇。",
     },
     {
       stockCode: "D004",
@@ -215,9 +212,16 @@ const reviewRows: Record<string, ReviewRow[]> = {
       currentPrice: 980,
       changeRate: -18,
       judgmentAtAnalysis: "割安 ○",
-      reviewNote: "割安だけでは不十分。利益悪化を見落としていた。",
     },
   ],
+};
+
+// 振り返りメモ（分析セット全体で1件）。
+// review_notes テーブル設計（1 analysis_set : 1 note）に合わせて、
+// 銘柄ごとではなくセット単位で持つ。
+const reviewNotesBySet: Record<string, string> = {
+  "ai-2026-08":
+    "AI需要→上方修正。注目理由は有効だった。B社は業績堅調だが市場期待には届かず。C社は高リスク判断が妥当でテーマ全体が上昇。D社は割安だけでは不十分で、利益悪化を見落としていた。",
 };
 
 export function getThemes(): Theme[] {
@@ -246,4 +250,8 @@ export function getAnalysisSetById(id: string): AnalysisSet | undefined {
 
 export function getReviewRows(analysisSetId: string): ReviewRow[] {
   return reviewRows[analysisSetId] ?? [];
+}
+
+export function getReviewNote(analysisSetId: string): string {
+  return reviewNotesBySet[analysisSetId] ?? "";
 }

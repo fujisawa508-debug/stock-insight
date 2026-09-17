@@ -1,10 +1,13 @@
 import { ThemeCard } from "@/components/ThemeCard";
-import { getRecentChanges, getThemes } from "@/lib/dummy-data";
+import { getRecentChanges } from "@/lib/dummy-data";
+import { getThemes } from "@/lib/repositories/theme-repository";
 
 // HOME（"/"）
 // 役割: 登録テーマ一覧 / 最近の変化 の表示、各テーマの THEME 画面への入口。
-export default function HomePage() {
-  const themes = getThemes();
+// テーマ一覧のみ Supabase (theme-repository.ts) から取得する。
+// 「最近の変化」はSTEP2の対象外のため、引き続き dummy-data.ts を使う。
+export default async function HomePage() {
+  const themes = await getThemes();
   const recentChanges = getRecentChanges();
 
   return (

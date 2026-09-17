@@ -92,6 +92,14 @@ export interface ReviewRow {
   changeRate: number;
   /** 当時の判断（分析時点の評価コメント） */
   judgmentAtAnalysis: string;
-  /** ユーザーが後から記入する振り返りメモ */
+}
+
+/** REVIEW 画面：分析セット全体の振り返り結果 */
+export interface ReviewData {
+  title: string;
+  /** ISO 8601 形式の分析日 */
+  analyzedAt: string;
+  rows: ReviewRow[];
+  /** 分析セット全体に対する振り返りメモ（1セットにつき1件） */
   reviewNote: string;
 }

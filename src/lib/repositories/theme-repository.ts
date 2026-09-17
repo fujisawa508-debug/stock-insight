@@ -1,66 +1,66 @@
 import { getSupabaseClient } from "@/lib/supabase/server-client";
 import {
-  getRecentChanges as getDummyRecentChanges,
-  getThemeStocks as getDummyThemeStocks,
   getThemes as getDummyThemes,
+  getThemeStocks as getDummyThemeStocks,
 } from "@/lib/dummy-data";
-import type { RecentChange, Theme, ThemeStockSummary } from "@/types";
+import type { Theme, ThemeStockSummary } from "@/types";
 
-// HOME / THEME 向けの Repository（Supabase版）。
-// dummy-data.ts と同じ関数名・戻り値の型にしてあるので、
-// page.tsx 側は import 元を変えるだけで差し替えられる。
+// HOME / THEME 画面向けRepository。
+// 画面(page.tsx)はここだけを呼び、Supabaseを直接呼ばない。
 //
-// 注意（2026-09-11 ユーザー確認済み・STEP2時点の暫定対応）:
-// - 「最近の変化」（recentUpdateCount / recentUpdateLabel / getRecentChanges）は
-//   News/Disclosure Provider（未接続）から取得する想定のデータで、現在のDB
-//   スキーマには保存先が無いため、dummy-data.ts の値をそのまま使う。
-// - THEME の成長性・割高感（growth / valuation）は AI Provider（未接続）が
-//   生成する想定のデータで、theme_stocks テーブルには列が無いため、
-//   dummy-data.ts の該当銘柄の値を暫定的に重ね合わせる。
-//   dummy-data.ts に対応データが無い銘柄は暫定値 "△" とする。
+// スコープ:
+// - Supabaseの themes テーブルから id / name を取得する（getThemes / getThemeById）。
+// - Supabaseの theme_stocks + stocks を結合し、テーマ内銘柄一覧を取得する（getThemeStocks）。
+// - stockCount / recentUpdateCount / recentUpdateLabel、および growth / valuation は
+//   theme_stocks集計・News/Disclosure/AI Provider（いずれも未接続）が必要なため、
+//   このSTEPでは対象外とし、dummy-data.ts の値をそのまま重ね合わせる。
+// - Supabase未設定・接続エラー時はアプリを落とさず、dummy-data.ts の内容
+//   をそのまま返す（フォールバック）。
 
-type ThemeRow = { id: string; name: string };
-type ThemeStockCountRow = { theme_id: string };
+type ThemeRow = {
+  id: string;
+  name: string;
+};
+
 type ThemeStockRow = {
   stock_code: string;
   reason: string;
   stocks: { name: string } | null;
 };
 
-async function fetchStockCountByTheme(): Promise<Map<string, number>> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from("theme_stocks").select("theme_id");
-  if (error) {
-    throw error;
-  }
-
-  const counts = new Map<string, number>();
-  for (const row of (data ?? []) as ThemeStockCountRow[]) {
-    counts.set(row.theme_id, (counts.get(row.theme_id) ?? 0) + 1);
-  }
-  return counts;
-}
-
 export async function getThemes(): Promise<Theme[]> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from("themes").select("id, name").order("id");
-  if (error) {
-    throw error;
+  const dummyThemes = getDummyThemes();
+
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from("themes")
+      .select("id, name")
+      .order("id");
+
+    if (error) {
+      throw error;
+    }
+
+    const dummyById = new Map(dummyThemes.map((theme) => [theme.id, theme]));
+
+    return (data as ThemeRow[]).map((row) => {
+      const dummy = dummyById.get(row.id);
+      return {
+        id: row.id,
+        name: row.name,
+        stockCount: dummy?.stockCount ?? 0,
+        recentUpdateCount: dummy?.recentUpdateCount ?? 0,
+        recentUpdateLabel: dummy?.recentUpdateLabel ?? "",
+      };
+    });
+  } catch (error) {
+    console.error(
+      "[theme-repository] Supabaseからのテーマ取得に失敗したため、dummy-data.tsにフォールバックしました:",
+      error
+    );
+    return dummyThemes;
   }
-
-  const stockCountByTheme = await fetchStockCountByTheme();
-  const dummyById = new Map(getDummyThemes().map((theme) => [theme.id, theme]));
-
-  return (data as ThemeRow[]).map((row) => {
-    const dummy = dummyById.get(row.id);
-    return {
-      id: row.id,
-      name: row.name,
-      stockCount: stockCountByTheme.get(row.id) ?? 0,
-      recentUpdateCount: dummy?.recentUpdateCount ?? 0,
-      recentUpdateLabel: dummy?.recentUpdateLabel ?? "",
-    };
-  });
 }
 
 export async function getThemeById(id: string): Promise<Theme | undefined> {
@@ -69,29 +69,36 @@ export async function getThemeById(id: string): Promise<Theme | undefined> {
 }
 
 export async function getThemeStocks(themeId: string): Promise<ThemeStockSummary[]> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from("theme_stocks")
-    .select("stock_code, reason, stocks(name)")
-    .eq("theme_id", themeId);
-  if (error) {
-    throw error;
+  const dummyStocks = getDummyThemeStocks(themeId);
+
+  try {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from("theme_stocks")
+      .select("stock_code, reason, stocks(name)")
+      .eq("theme_id", themeId);
+
+    if (error) {
+      throw error;
+    }
+
+    const dummyByCode = new Map(dummyStocks.map((stock) => [stock.code, stock]));
+
+    return (data as unknown as ThemeStockRow[]).map((row) => {
+      const dummy = dummyByCode.get(row.stock_code);
+      return {
+        code: row.stock_code,
+        name: row.stocks?.name ?? row.stock_code,
+        reason: row.reason,
+        growth: dummy?.growth ?? "△",
+        valuation: dummy?.valuation ?? "△",
+      };
+    });
+  } catch (error) {
+    console.error(
+      "[theme-repository] Supabaseからの銘柄取得に失敗したため、dummy-data.tsにフォールバックしました:",
+      error
+    );
+    return dummyStocks;
   }
-
-  const dummyByCode = new Map(getDummyThemeStocks(themeId).map((stock) => [stock.code, stock]));
-
-  return (data as unknown as ThemeStockRow[]).map((row) => {
-    const dummy = dummyByCode.get(row.stock_code);
-    return {
-      code: row.stock_code,
-      name: row.stocks?.name ?? row.stock_code,
-      reason: row.reason,
-      growth: dummy?.growth ?? "△",
-      valuation: dummy?.valuation ?? "△",
-    };
-  });
-}
-
-export function getRecentChanges(): RecentChange[] {
-  return getDummyRecentChanges();
 }

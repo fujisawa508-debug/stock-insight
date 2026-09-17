@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getAnalysisSetById } from "@/lib/dummy-data";
+import { getAnalysisSetById } from "@/lib/repositories/analysis-repository";
 
 // SET（"/analysis/[id]"）
 // 役割: 複数銘柄を分析セットとして一覧表示し、分析日・対象銘柄・当時の主要指標を見せる。
@@ -16,7 +16,7 @@ export default async function AnalysisSetPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const analysisSet = getAnalysisSetById(id);
+  const analysisSet = await getAnalysisSetById(id);
 
   if (!analysisSet) {
     notFound();

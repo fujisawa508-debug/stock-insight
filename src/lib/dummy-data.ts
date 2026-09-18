@@ -69,6 +69,8 @@ const themeStocks: Record<string, ThemeStockSummary[]> = {
     { code: "F006", name: "F社", growth: "○", valuation: "○", reason: "提携拡大" },
     { code: "G007", name: "G社", growth: "△", valuation: "△", reason: "コスト増懸念" },
     { code: "H008", name: "H社", growth: "○", valuation: "◎", reason: "海外展開" },
+    // STEP3: 実在銘柄コード移行の第1弾。ダミー銘柄と併存させる。
+    { code: "6758", name: "ソニーグループ", growth: "○", valuation: "○", reason: "AI活用の広がりに注目" },
   ],
   space: [
     { code: "S001", name: "S社", growth: "◎", valuation: "△", reason: "大型受注を発表" },
@@ -156,6 +158,23 @@ const stockDetails: Record<string, StockDetail> = {
     pbr: 4.8,
     roe: 12.1,
     operatingProfitGrowthYoy: 22,
+  },
+  // STEP3: 実在銘柄コード移行の第1弾。reason等はAI/Market Data Provider
+  // 未接続のため、他社同様の暫定プレースホルダ値。
+  "6758": {
+    code: "6758",
+    name: "ソニーグループ",
+    industry: "AI関連",
+    reason: "AI活用の広がりに注目が集まる大型株。",
+    growth: "○",
+    profitability: "○",
+    financial: "○",
+    valuation: "○",
+    risk: "詳細分析は未接続のため未評価",
+    per: 20.0,
+    pbr: 2.5,
+    roe: 12.0,
+    operatingProfitGrowthYoy: 10,
   },
 };
 

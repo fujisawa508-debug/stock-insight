@@ -100,3 +100,14 @@ insert into review_notes (analysis_set_id, note) values
     'AI需要→上方修正。注目理由は有効だった。B社は業績堅調だが市場期待には届かず。C社は高リスク判断が妥当でテーマ全体が上昇。D社は割安だけでは不十分で、利益悪化を見落としていた。'
   )
 on conflict (analysis_set_id) do nothing;
+
+-- STEP3: 実在銘柄コード追加（第1弾） -------------------------------------
+-- 20260918000000_add_real_stock_6758.sql と同じ内容。
+-- 既存のダミー銘柄(A001等)・analysis_sets 等は変更しない。
+insert into stocks (code, name, industry) values
+  ('6758', 'ソニーグループ', 'AI関連')
+on conflict (code) do nothing;
+
+insert into theme_stocks (theme_id, stock_code, reason) values
+  ('ai', '6758', 'AI活用の広がりに注目')
+on conflict (theme_id, stock_code) do nothing;

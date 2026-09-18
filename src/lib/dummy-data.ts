@@ -72,6 +72,8 @@ const themeStocks: Record<string, ThemeStockSummary[]> = {
     // STEP3: 実在銘柄コード移行。ダミー銘柄と併存させる。
     { code: "6758", name: "ソニーグループ", growth: "○", valuation: "○", reason: "AI活用の広がりに注目" },
     { code: "9432", name: "日本電信電話", growth: "○", valuation: "○", reason: "自社LLM等AI研究開発への注目" },
+    { code: "6701", name: "日本電気", growth: "○", valuation: "○", reason: "AI事業を主力訴求" },
+    { code: "4689", name: "LINEヤフー", growth: "○", valuation: "○", reason: "AI検索・広告事業への注目" },
   ],
   space: [
     { code: "S001", name: "S社", growth: "◎", valuation: "△", reason: "大型受注を発表" },
@@ -193,6 +195,38 @@ const stockDetails: Record<string, StockDetail> = {
     pbr: 1.3,
     roe: 9.0,
     operatingProfitGrowthYoy: 5,
+  },
+  // STEP3: 実在銘柄コード移行の第3弾。reason等はAI/Market Data Provider
+  // 未接続のため、6758/9432と同様の暫定プレースホルダ値。
+  "6701": {
+    code: "6701",
+    name: "日本電気",
+    industry: "AI関連",
+    reason: "AI事業を経営の主力として訴求している大型株。",
+    growth: "○",
+    profitability: "○",
+    financial: "○",
+    valuation: "○",
+    risk: "詳細分析は未接続のため未評価",
+    per: 18.0,
+    pbr: 2.0,
+    roe: 8.0,
+    operatingProfitGrowthYoy: 7,
+  },
+  "4689": {
+    code: "4689",
+    name: "LINEヤフー",
+    industry: "AI関連",
+    reason: "AI検索・広告事業で知名度の高い大型株。",
+    growth: "○",
+    profitability: "○",
+    financial: "○",
+    valuation: "○",
+    risk: "詳細分析は未接続のため未評価",
+    per: 25.0,
+    pbr: 3.0,
+    roe: 6.0,
+    operatingProfitGrowthYoy: 3,
   },
 };
 

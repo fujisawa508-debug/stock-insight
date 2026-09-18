@@ -169,3 +169,44 @@ insert into stock_snapshots
 values
   ('33333333-3333-3333-3333-333333333001', 144.4, 13.0, 1.3, 9.0, 5, '2026-09-18T00:00:00Z')
 on conflict (analysis_item_id) do nothing;
+
+-- STEP3: 実在銘柄6701（日本電気/NEC）・4689（LINEヤフー）を含む新しい分析セット ---
+-- 20260918030000_add_analysis_set_ai_2026_09c.sql と同じ内容。
+-- 既存の ai-2026-08 / ai-2026-09 / ai-2026-09b 関連データは変更しない。
+-- price_date列（価格の対象日）は stock_snapshots にまだ未実装。
+-- price=3756(6701)/409.5(4689) は 2026-06-19 終値、captured_atはSnapshot保存日時(2026-09-18)。
+insert into stocks (code, name, industry) values
+  ('6701', '日本電気', 'AI関連'),
+  ('4689', 'LINEヤフー', 'AI関連')
+on conflict (code) do nothing;
+
+insert into theme_stocks (theme_id, stock_code, reason) values
+  ('ai', '6701', 'AI事業を主力訴求'),
+  ('ai', '4689', 'AI検索・広告事業への注目')
+on conflict (theme_id, stock_code) do nothing;
+
+insert into analysis_sets (id, theme_id, title, analyzed_at) values
+  ('ai-2026-09c', 'ai', 'AI関連株 2026年9月(実銘柄拡張2)', '2026-09-18')
+on conflict (id) do nothing;
+
+insert into analysis_items
+  (id, set_id, stock_code, ai_summary, growth, profitability, financial, valuation, risk)
+values
+  (
+    '44444444-4444-4444-4444-444444444001', 'ai-2026-09c', '6701',
+    'AI事業を経営の主力として訴求している大型株。',
+    '○', '○', '○', '○', '詳細分析は未接続のため未評価'
+  ),
+  (
+    '44444444-4444-4444-4444-444444444002', 'ai-2026-09c', '4689',
+    'AI検索・広告事業で知名度の高い大型株。',
+    '○', '○', '○', '○', '詳細分析は未接続のため未評価'
+  )
+on conflict (id) do nothing;
+
+insert into stock_snapshots
+  (analysis_item_id, price, per, pbr, roe, profit_yoy, captured_at)
+values
+  ('44444444-4444-4444-4444-444444444001', 3756, 18.0, 2.0, 8.0, 7, '2026-09-18T00:00:00Z'),
+  ('44444444-4444-4444-4444-444444444002', 409.5, 25.0, 3.0, 6.0, 3, '2026-09-18T00:00:00Z')
+on conflict (analysis_item_id) do nothing;

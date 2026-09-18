@@ -131,16 +131,17 @@ on conflict (id) do nothing;
 
 -- price=3140 は 2026-06-19 終値（J-Quants Freeプランの12週間遅延分）。
 -- captured_at は Snapshotを取得・保存した日時のため 2026-09-18 のまま。
+-- price_date（価格の対象日）は 20260918040000_add_price_date_to_stock_snapshots.sql
+-- で列追加済み。実在銘柄はここで price_date=2026-06-19 を直接INSERTする。
 insert into stock_snapshots
-  (analysis_item_id, price, per, pbr, roe, profit_yoy, captured_at)
+  (analysis_item_id, price, per, pbr, roe, profit_yoy, captured_at, price_date)
 values
-  ('22222222-2222-2222-2222-222222222001', 3140, 20.0, 2.5, 12.0, 10, '2026-09-18T00:00:00Z')
+  ('22222222-2222-2222-2222-222222222001', 3140, 20.0, 2.5, 12.0, 10, '2026-09-18T00:00:00Z', '2026-06-19')
 on conflict (analysis_item_id) do nothing;
 
 -- STEP3: 実在銘柄9432（日本電信電話/NTT）を含む新しい分析セット -----------------
 -- 20260918020000_add_analysis_set_ai_2026_09b.sql と同じ内容。
 -- 既存の ai-2026-08 / ai-2026-09 関連データは変更しない。
--- price_date列（価格の対象日）は stock_snapshots にまだ未実装。
 -- price=144.4 は 2026-06-19 終値、captured_at はSnapshot保存日時(2026-09-18)。
 insert into stocks (code, name, industry) values
   ('9432', '日本電信電話', 'AI関連')
@@ -165,15 +166,14 @@ values
 on conflict (id) do nothing;
 
 insert into stock_snapshots
-  (analysis_item_id, price, per, pbr, roe, profit_yoy, captured_at)
+  (analysis_item_id, price, per, pbr, roe, profit_yoy, captured_at, price_date)
 values
-  ('33333333-3333-3333-3333-333333333001', 144.4, 13.0, 1.3, 9.0, 5, '2026-09-18T00:00:00Z')
+  ('33333333-3333-3333-3333-333333333001', 144.4, 13.0, 1.3, 9.0, 5, '2026-09-18T00:00:00Z', '2026-06-19')
 on conflict (analysis_item_id) do nothing;
 
 -- STEP3: 実在銘柄6701（日本電気/NEC）・4689（LINEヤフー）を含む新しい分析セット ---
 -- 20260918030000_add_analysis_set_ai_2026_09c.sql と同じ内容。
 -- 既存の ai-2026-08 / ai-2026-09 / ai-2026-09b 関連データは変更しない。
--- price_date列（価格の対象日）は stock_snapshots にまだ未実装。
 -- price=3756(6701)/409.5(4689) は 2026-06-19 終値、captured_atはSnapshot保存日時(2026-09-18)。
 insert into stocks (code, name, industry) values
   ('6701', '日本電気', 'AI関連'),
@@ -205,8 +205,8 @@ values
 on conflict (id) do nothing;
 
 insert into stock_snapshots
-  (analysis_item_id, price, per, pbr, roe, profit_yoy, captured_at)
+  (analysis_item_id, price, per, pbr, roe, profit_yoy, captured_at, price_date)
 values
-  ('44444444-4444-4444-4444-444444444001', 3756, 18.0, 2.0, 8.0, 7, '2026-09-18T00:00:00Z'),
-  ('44444444-4444-4444-4444-444444444002', 409.5, 25.0, 3.0, 6.0, 3, '2026-09-18T00:00:00Z')
+  ('44444444-4444-4444-4444-444444444001', 3756, 18.0, 2.0, 8.0, 7, '2026-09-18T00:00:00Z', '2026-06-19'),
+  ('44444444-4444-4444-4444-444444444002', 409.5, 25.0, 3.0, 6.0, 3, '2026-09-18T00:00:00Z', '2026-06-19')
 on conflict (analysis_item_id) do nothing;

@@ -69,8 +69,9 @@ const themeStocks: Record<string, ThemeStockSummary[]> = {
     { code: "F006", name: "F社", growth: "○", valuation: "○", reason: "提携拡大" },
     { code: "G007", name: "G社", growth: "△", valuation: "△", reason: "コスト増懸念" },
     { code: "H008", name: "H社", growth: "○", valuation: "◎", reason: "海外展開" },
-    // STEP3: 実在銘柄コード移行の第1弾。ダミー銘柄と併存させる。
+    // STEP3: 実在銘柄コード移行。ダミー銘柄と併存させる。
     { code: "6758", name: "ソニーグループ", growth: "○", valuation: "○", reason: "AI活用の広がりに注目" },
+    { code: "9432", name: "日本電信電話", growth: "○", valuation: "○", reason: "自社LLM等AI研究開発への注目" },
   ],
   space: [
     { code: "S001", name: "S社", growth: "◎", valuation: "△", reason: "大型受注を発表" },
@@ -175,6 +176,23 @@ const stockDetails: Record<string, StockDetail> = {
     pbr: 2.5,
     roe: 12.0,
     operatingProfitGrowthYoy: 10,
+  },
+  // STEP3: 実在銘柄コード移行の第2弾。reason等はAI/Market Data Provider
+  // 未接続のため、6758と同様の暫定プレースホルダ値。
+  "9432": {
+    code: "9432",
+    name: "日本電信電話",
+    industry: "AI関連",
+    reason: "AI研究開発（自社LLM等）への取り組みが注目される大型株。",
+    growth: "○",
+    profitability: "○",
+    financial: "○",
+    valuation: "○",
+    risk: "詳細分析は未接続のため未評価",
+    per: 13.0,
+    pbr: 1.3,
+    roe: 9.0,
+    operatingProfitGrowthYoy: 5,
   },
 };
 

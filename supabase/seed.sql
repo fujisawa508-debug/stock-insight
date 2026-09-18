@@ -136,3 +136,36 @@ insert into stock_snapshots
 values
   ('22222222-2222-2222-2222-222222222001', 3140, 20.0, 2.5, 12.0, 10, '2026-09-18T00:00:00Z')
 on conflict (analysis_item_id) do nothing;
+
+-- STEP3: 実在銘柄9432（日本電信電話/NTT）を含む新しい分析セット -----------------
+-- 20260918020000_add_analysis_set_ai_2026_09b.sql と同じ内容。
+-- 既存の ai-2026-08 / ai-2026-09 関連データは変更しない。
+-- price_date列（価格の対象日）は stock_snapshots にまだ未実装。
+-- price=144.4 は 2026-06-19 終値、captured_at はSnapshot保存日時(2026-09-18)。
+insert into stocks (code, name, industry) values
+  ('9432', '日本電信電話', 'AI関連')
+on conflict (code) do nothing;
+
+insert into theme_stocks (theme_id, stock_code, reason) values
+  ('ai', '9432', '自社LLM等AI研究開発への注目')
+on conflict (theme_id, stock_code) do nothing;
+
+insert into analysis_sets (id, theme_id, title, analyzed_at) values
+  ('ai-2026-09b', 'ai', 'AI関連株 2026年9月(実銘柄拡張)', '2026-09-18')
+on conflict (id) do nothing;
+
+insert into analysis_items
+  (id, set_id, stock_code, ai_summary, growth, profitability, financial, valuation, risk)
+values
+  (
+    '33333333-3333-3333-3333-333333333001', 'ai-2026-09b', '9432',
+    'AI研究開発（自社LLM等）への取り組みが注目される大型株。',
+    '○', '○', '○', '○', '詳細分析は未接続のため未評価'
+  )
+on conflict (id) do nothing;
+
+insert into stock_snapshots
+  (analysis_item_id, price, per, pbr, roe, profit_yoy, captured_at)
+values
+  ('33333333-3333-3333-3333-333333333001', 144.4, 13.0, 1.3, 9.0, 5, '2026-09-18T00:00:00Z')
+on conflict (analysis_item_id) do nothing;

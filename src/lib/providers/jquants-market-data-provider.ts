@@ -14,6 +14,11 @@ const BASE_URL = "https://api.jquants.com";
 const LOOKBACK_FROM_DAYS = 200;
 const LOOKBACK_TO_DAYS = 90;
 
+// J-Quantsが受け付けるコード形式（4桁 または 5桁の数字）。
+// 呼び出し元の判定ミス（ダミーコードを渡してしまう等）があっても、
+// Provider自身がここで弾く。
+const VALID_CODE_PATTERN = /^\d{4,5}$/;
+
 type BarsDailyRow = {
   Date: string;
   Code: string;
@@ -41,6 +46,10 @@ function getApiKey(): string {
 
 export class JQuantsMarketDataProvider implements MarketDataProvider {
   async getLatestDailyQuote(stockCode: string): Promise<DailyQuote | undefined> {
+    if (!VALID_CODE_PATTERN.test(stockCode)) {
+      throw new Error(`[jquants-market-data-provider] 不正な銘柄コード形式: ${stockCode}`);
+    }
+
     const apiKey = getApiKey();
 
     const url = new URL(`${BASE_URL}/v2/equities/bars/daily`);

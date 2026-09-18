@@ -4,7 +4,7 @@ import {
   getReviewNote as getDummyReviewNote,
   getReviewRows as getDummyReviewRows,
 } from "@/lib/dummy-data";
-import type { MarketDataProvider } from "@/lib/providers/market-data-provider";
+import { isMarketDataCandidate, type MarketDataProvider } from "@/lib/providers/market-data-provider";
 import { JQuantsMarketDataProvider } from "@/lib/providers/jquants-market-data-provider";
 import type { AnalysisSetItem, Rating, ReviewData, ReviewRow } from "@/types";
 
@@ -16,19 +16,21 @@ import type { AnalysisSetItem, Rating, ReviewData, ReviewRow } from "@/types";
 //   既存の analysis-repository.getAnalysisSetById() をそのまま再利用する。
 // - 当時の判断(judgmentAtAnalysis)は analysis_items.growth / valuation から組み立てる。
 // - 振り返りメモ(reviewNote)は review_notes テーブルから取得する（1セット1件、表示のみ）。
-// - 現在株価(currentPrice)は、実在銘柄コードへの移行が済んだ銘柄
-//   （REAL_MARKET_DATA_STOCK_CODES）のみ MarketDataProvider(J-Quants) から取得する。
-//   それ以外のダミー銘柄は引き続き dummy-data.ts を使う。
+// - 現在株価(currentPrice)は、銘柄コードの形式（isMarketDataCandidate）で
+//   「MarketDataProviderに問い合わせる候補か」を判定する。数字4桁の形式は
+//   あくまで問い合わせ候補というだけで、実在・取引可能であることは保証しない
+//   （それは getLatestDailyQuote() の成功/失敗/undefinedで判断される）。
+//   ダミー銘柄コード（A001等、英字1桁+数字3桁）はこの形式に一致しないため、
+//   問い合わせ自体を行わず引き続き dummy-data.ts を使う。
+//   銘柄コードを個別に列挙したリストは持たないため、新しい実在銘柄を
+//   stocks/theme_stocks/analysis_items に追加するだけで、コード変更なしに
+//   ここで自動的にMarketDataProviderへの問い合わせ候補になる。
 //   J-QuantsはFreeプランのため、取得できても最大12週間遅延した値になる
 //   （「現在値」という名前だが、厳密な現在値ではない点はUI未反映の既知の制約）。
 // - Supabase未設定・接続エラー時、およびMarketDataProvider取得失敗時も
 //   アプリを落とさず dummy-data.ts の内容にフォールバックする。
 
 const marketDataProvider: MarketDataProvider = new JQuantsMarketDataProvider();
-
-// J-Quantsへの実在銘柄コード移行が済んでいる銘柄だけをここに追加する。
-// それ以外のコードは従来通り dummy-data.ts の currentPrice にフォールバックする。
-const REAL_MARKET_DATA_STOCK_CODES = new Set(["6758"]);
 
 type AnalysisItemJudgmentRow = {
   stock_code: string;
@@ -46,7 +48,7 @@ async function resolveCurrentPrice(
 ): Promise<number> {
   const dummyFallbackPrice = dummyRowByCode.get(item.stockCode)?.currentPrice ?? item.priceAtAnalysis;
 
-  if (!REAL_MARKET_DATA_STOCK_CODES.has(item.stockCode)) {
+  if (!isMarketDataCandidate(item.stockCode)) {
     return dummyFallbackPrice;
   }
 

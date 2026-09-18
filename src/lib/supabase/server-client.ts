@@ -1,12 +1,16 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-// Supabaseクライアント（サーバー専用）。
+// Supabaseクライアント（サーバー専用・anon key）。
 //
 // 構成: Browser -> Server Component -> Repository -> ここ -> Supabase
 // ブラウザから直接呼ばれることを防ぐため、モジュール読み込み時にガードする。
-// 使用キーは anon key のみ（service_role key はブラウザ流出リスクを避けるため
-// このアプリでは今回一切使用しない）。
+// 使用キーは anon key のみ。GET系（読み取り専用）のRepositoryはすべて
+// このクライアントを使う。
 // 環境変数名は NEXT_PUBLIC_ を付けず、クライアントバンドルに混入しないようにする。
+//
+// service_role key を使う書き込み専用クライアントは admin-client.ts に分離
+// している（RLSを完全にバイパスするため、意図しない誤用を避けるためにも
+// このファイルとは物理的に別ファイルにしてある）。
 
 if (typeof window !== "undefined") {
   throw new Error(

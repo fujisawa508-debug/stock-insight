@@ -1,15 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAnalysisSetById } from "@/lib/repositories/analysis-repository";
+import { SaveAnalysisSetButton } from "@/components/SaveAnalysisSetButton";
 
 // SET（"/analysis/[id]"）
 // 役割: 複数銘柄を分析セットとして一覧表示し、分析日・対象銘柄・当時の主要指標を見せる。
 // REVIEW 画面への入口。
 //
 // 「保存ボタン」について:
-// STEP1ではDB（Supabase）未接続のため、押しても永続化されない。
-// design.md の実装ロードマップ Step5「保存」で実データ保存に差し替える想定のため、
-// ここでは非活性ボタンとして仮実装している。
+// STEP3で実装済み。現在表示中の分析セットを元に、新しいIDで
+// analysis_sets/analysis_items/stock_snapshotsをSupabaseへ作成する
+// （既存の分析セットは変更しない）。処理本体は
+// actions.ts(Server Action) → analysis-repository.ts で行う。
 export default async function AnalysisSetPage({
   params,
 }: {
@@ -56,15 +58,8 @@ export default async function AnalysisSetPage({
         </table>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <button
-          type="button"
-          disabled
-          title="STEP1未実装: DB接続後に保存できるようになります"
-          className="rounded-lg border border-zinc-300 bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-400"
-        >
-          保存（未実装）
-        </button>
+      <div className="flex flex-wrap items-start gap-3">
+        <SaveAnalysisSetButton analysisSetId={analysisSet.id} />
         <Link
           href={`/review/${analysisSet.id}`}
           className="inline-flex items-center rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-800"

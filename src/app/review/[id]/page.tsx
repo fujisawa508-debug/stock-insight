@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getReviewData } from "@/lib/repositories/review-repository";
+import { ReviewNoteForm } from "@/components/ReviewNoteForm";
 
 // REVIEW（"/review/[id]"）
 // 役割: 過去の分析セットについて、分析時点の値・現在値・変化率・当時の判断・
@@ -7,9 +8,11 @@ import { getReviewData } from "@/lib/repositories/review-repository";
 //
 // データソース:
 // - 分析セット本体・分析時点の株価/指標・当時の判断は Supabase から取得する。
-// - 振り返りメモは review_notes テーブルから取得する（1分析セットにつき1件、表示のみ）。
-// - 「現在値」は本来 REVIEW 表示のたびに再取得する想定（design.md 保存ルール参照）だが、
-//   Market Data Provider が未接続のため、引き続きダミーの固定値を使う。
+// - 振り返りメモは review_notes テーブルから取得・編集・保存できる
+//   （1分析セットにつき1件。保存はactions.ts(Server Action)→
+//   review-repository.tsのsaveReviewNote()経由でservice_role upsertする）。
+// - 「現在値」は Market Data Provider(J-Quants) から実在銘柄コードのみ取得し、
+//   それ以外はダミー値を使う。
 export default async function ReviewPage({
   params,
 }: {
@@ -65,9 +68,9 @@ export default async function ReviewPage({
 
       <section className="rounded-lg border border-zinc-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-zinc-500">振り返りメモ（分析セット全体）</h2>
-        <p className="mt-1 whitespace-pre-wrap text-zinc-900">
-          {review.reviewNote || "（まだ振り返りメモが登録されていません）"}
-        </p>
+        <div className="mt-2">
+          <ReviewNoteForm analysisSetId={id} initialNote={review.reviewNote} />
+        </div>
       </section>
     </div>
   );

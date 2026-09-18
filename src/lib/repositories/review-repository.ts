@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "@/lib/supabase/server-client";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin-client";
 import { getAnalysisSetById } from "@/lib/repositories/analysis-repository";
 import {
   getReviewNote as getDummyReviewNote,
@@ -140,4 +141,33 @@ export async function getReviewData(analysisSetId: string): Promise<ReviewData |
     rows,
     reviewNote,
   };
+}
+
+export type SaveReviewNoteResult = { ok: true } | { ok: false; error: string };
+
+// review_notesはanalysis_set_idにunique制約があるため、upsert1回で
+// 「新規作成（まだメモが無いセット）」「既存メモの上書き」の両方を扱う。
+// 単一テーブル・単一行の操作であり、upsert自体が1つのSQL文として
+// 原子的に実行されるため、analysis_set保存機能のようなRPC関数化はしない。
+// anonへのINSERT/UPDATE policyは追加しないため、admin client(service_role)
+// から直接呼ぶ。price/analysis_set等、他のテーブル・列は一切更新しない。
+export async function saveReviewNote(
+  analysisSetId: string,
+  note: string
+): Promise<SaveReviewNoteResult> {
+  const admin = getSupabaseAdminClient();
+
+  const { error } = await admin
+    .from("review_notes")
+    .upsert(
+      { analysis_set_id: analysisSetId, note, updated_at: new Date().toISOString() },
+      { onConflict: "analysis_set_id" }
+    );
+
+  if (error) {
+    console.error("[review-repository] review_notesの保存に失敗しました:", error);
+    return { ok: false, error: "振り返りメモの保存に失敗しました。時間をおいて再度お試しください。" };
+  }
+
+  return { ok: true };
 }

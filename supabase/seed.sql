@@ -111,3 +111,28 @@ on conflict (code) do nothing;
 insert into theme_stocks (theme_id, stock_code, reason) values
   ('ai', '6758', 'AI活用の広がりに注目')
 on conflict (theme_id, stock_code) do nothing;
+
+-- STEP3: 実在銘柄6758を含む新しい分析セット ---------------------------------
+-- 20260918010000_add_analysis_set_ai_2026_09.sql と同じ内容。
+-- 既存の ai-2026-08 関連データは変更しない。
+insert into analysis_sets (id, theme_id, title, analyzed_at) values
+  ('ai-2026-09', 'ai', 'AI関連株 2026年9月', '2026-09-18')
+on conflict (id) do nothing;
+
+insert into analysis_items
+  (id, set_id, stock_code, ai_summary, growth, profitability, financial, valuation, risk)
+values
+  (
+    '22222222-2222-2222-2222-222222222001', 'ai-2026-09', '6758',
+    'AI活用の広がりに注目が集まる大型株。',
+    '○', '○', '○', '○', '詳細分析は未接続のため未評価'
+  )
+on conflict (id) do nothing;
+
+-- price=3140 は 2026-06-19 終値（J-Quants Freeプランの12週間遅延分）。
+-- captured_at は Snapshotを取得・保存した日時のため 2026-09-18 のまま。
+insert into stock_snapshots
+  (analysis_item_id, price, per, pbr, roe, profit_yoy, captured_at)
+values
+  ('22222222-2222-2222-2222-222222222001', 3140, 20.0, 2.5, 12.0, 10, '2026-09-18T00:00:00Z')
+on conflict (analysis_item_id) do nothing;

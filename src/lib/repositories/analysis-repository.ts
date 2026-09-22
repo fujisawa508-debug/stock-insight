@@ -6,6 +6,8 @@ import {
 } from "@/lib/dummy-data";
 import { isMarketDataCandidate, type MarketDataProvider } from "@/lib/providers/market-data-provider";
 import { JQuantsMarketDataProvider } from "@/lib/providers/jquants-market-data-provider";
+import type { AiProvider, StockAnalysisInput } from "@/lib/providers/ai-provider";
+import { ClaudeAiProvider } from "@/lib/providers/claude-ai-provider";
 import type { AnalysisSet, AnalysisSetItem, Rating } from "@/types";
 
 // SET画面向けRepository（STEP2: 最小構成 / STEP3: 保存機能を追加）。
@@ -23,9 +25,15 @@ import type { AnalysisSet, AnalysisSetItem, Rating } from "@/types";
 //   stock_snapshots を作成する。既存行は一切更新・削除しない。
 // - 実在銘柄(isMarketDataCandidate)は保存の都度MarketDataProviderから
 //   最新終値を取得し直す。取得失敗時・ダミー銘柄は既存のpriceAtAnalysisを使う。
-// - growth/profitability/financial/valuation/risk/ai_summaryはAI Provider
-//   未接続のため、dummy-data.tsのstockDetailから補完する（無い場合は
-//   他の実在銘柄と同じ暫定プレースホルダ値）。
+// - growth/profitability/financial/valuationは、AIの自由判断ではなく
+//   コード側で確定的に計算する（deriveGrowthRating等。同じ入力で評価が
+//   揺れることを避けるため）。現状のデータでは根拠不足のfinancial/
+//   valuationは常に"—"（未評価）にする。AiProviderはsummary/riskの
+//   文章生成のみを担当し、ratingの決定には一切関与しない。
+// - AiProvider呼び出しに失敗した場合（APIキー未設定・API失敗・
+//   応答形式不正・禁止ワード検出等）は、summary/riskをdummy-data.tsの
+//   stockDetailの値へフォールバックする（ratingは元々AI非依存のため
+//   フォールバック対象にならない）。
 // - 3テーブルへの書き込みは、PostgreSQL関数 create_analysis_set(jsonb) を
 //   1回呼ぶだけで行う（Repository側で個別にinsertしない）。この関数は
 //   1トランザクションとして実行され、途中で失敗すれば全体がロールバック
@@ -124,8 +132,46 @@ export async function getAnalysisSetById(id: string): Promise<AnalysisSet | unde
 }
 
 const marketDataProvider: MarketDataProvider = new JQuantsMarketDataProvider();
+const aiProvider: AiProvider = new ClaudeAiProvider();
 
 export type CreateAnalysisSetResult = { ok: true; id: string } | { ok: false; error: string };
+
+// Rating判定ロジック（AI非依存・確定的）。
+//
+// growth/profitabilityは、現状取得できている数値（前年比営業利益成長率・
+// ROE）だけで、業種を問わずある程度共通の基準で判断できるため、固定の
+// しきい値で判定する。しきい値は一般的な目安であり、検証済みの会計基準
+// ではないため、将来チューニングの余地がある。
+function deriveGrowthRating(profitYoy: number): Rating {
+  if (profitYoy >= 15) return "◎";
+  if (profitYoy >= 5) return "○";
+  if (profitYoy >= 0) return "△";
+  return "×";
+}
+
+function deriveProfitabilityRating(roe: number): Rating {
+  if (roe >= 15) return "◎";
+  if (roe >= 8) return "○";
+  if (roe >= 3) return "△";
+  return "×";
+}
+
+// PER/PBRは業種によって「妥当な水準」が大きく異なるため、業種別
+// ベンチマークが無い現状では割安/割高を断定できない。常に未評価とする。
+// 将来、業種別の基準値等が接続された時点でこの関数を拡張する。
+function deriveValuationRating(): Rating {
+  return "—";
+}
+
+// 自己資本比率・有利子負債・営業CF・現金等（EDINET由来）が無いと
+// 財務健全性は判断できないため、financialDataが無い間は常に未評価とする。
+function deriveFinancialRating(financialData: StockAnalysisInput["financialData"]): Rating {
+  if (!financialData) {
+    return "—";
+  }
+  // 将来の拡張ポイント（EDINET接続後に判定ロジックを実装する）。
+  return "—";
+}
 
 type ResolvedItem = {
   stockCode: string;
@@ -145,37 +191,74 @@ type ResolvedItem = {
 
 async function resolveItemForSave(item: AnalysisSetItem): Promise<ResolvedItem> {
   const dummyDetail = getDummyStockDetail(item.stockCode);
-  const base = {
+  const profitYoy = dummyDetail?.operatingProfitGrowthYoy ?? 0;
+
+  // 1. 価格解決（既存ロジック。AI要約に渡す価格もこの解決後の値を使う）。
+  let price = item.priceAtAnalysis;
+  let priceDate: string | null = null;
+
+  if (isMarketDataCandidate(item.stockCode)) {
+    try {
+      const quote = await marketDataProvider.getLatestDailyQuote(item.stockCode);
+      if (quote) {
+        price = quote.close;
+        priceDate = quote.date;
+      }
+    } catch (error) {
+      console.error(
+        "[analysis-repository] MarketDataProviderからの価格取得に失敗したため、既存値にフォールバックしました:",
+        error
+      );
+    }
+  }
+
+  // 2. Rating確定（AI非依存・確定的）。
+  const ratings = {
+    growth: deriveGrowthRating(profitYoy),
+    profitability: deriveProfitabilityRating(item.roe),
+    financial: deriveFinancialRating(undefined), // financialData未接続のため常に"—"
+    valuation: deriveValuationRating(), // 業種ベンチマーク未接続のため常に"—"
+  };
+
+  // 3. AI要約生成（summary/riskのみ。失敗時はdummy-data.tsへフォールバック）。
+  let aiSummary = dummyDetail?.reason ?? "詳細分析は未接続のため未評価";
+  let risk = dummyDetail?.risk ?? "詳細分析は未接続のため未評価";
+
+  try {
+    const analysis = await aiProvider.analyzeStock({
+      stockCode: item.stockCode,
+      stockName: item.stockName,
+      price,
+      per: item.per,
+      pbr: item.pbr,
+      roe: item.roe,
+      profitYoy,
+      ratings,
+    });
+    aiSummary = analysis.summary;
+    risk = analysis.risk;
+  } catch (error) {
+    console.error(
+      "[analysis-repository] AI Providerからの要約取得に失敗したため、dummy-data.tsにフォールバックしました:",
+      error
+    );
+  }
+
+  return {
     stockCode: item.stockCode,
     per: item.per,
     pbr: item.pbr,
     roe: item.roe,
-    profitYoy: dummyDetail?.operatingProfitGrowthYoy ?? 0,
-    aiSummary: dummyDetail?.reason ?? "詳細分析は未接続のため未評価",
-    growth: dummyDetail?.growth ?? "△",
-    profitability: dummyDetail?.profitability ?? "△",
-    financial: dummyDetail?.financial ?? "△",
-    valuation: dummyDetail?.valuation ?? "△",
-    risk: dummyDetail?.risk ?? "詳細分析は未接続のため未評価",
+    profitYoy,
+    aiSummary,
+    growth: ratings.growth,
+    profitability: ratings.profitability,
+    financial: ratings.financial,
+    valuation: ratings.valuation,
+    risk,
+    price,
+    priceDate,
   };
-
-  if (!isMarketDataCandidate(item.stockCode)) {
-    return { ...base, price: item.priceAtAnalysis, priceDate: null };
-  }
-
-  try {
-    const quote = await marketDataProvider.getLatestDailyQuote(item.stockCode);
-    if (!quote) {
-      return { ...base, price: item.priceAtAnalysis, priceDate: null };
-    }
-    return { ...base, price: quote.close, priceDate: quote.date };
-  } catch (error) {
-    console.error(
-      "[analysis-repository] MarketDataProviderからの価格取得に失敗したため、既存値にフォールバックしました:",
-      error
-    );
-    return { ...base, price: item.priceAtAnalysis, priceDate: null };
-  }
 }
 
 function generateAnalysisSetId(themeId: string): string {

@@ -7,6 +7,8 @@ const RATING_STYLE: Record<Rating, string> = {
   "○": "bg-sky-100 text-sky-800",
   "△": "bg-amber-100 text-amber-800",
   "×": "bg-rose-100 text-rose-800",
+  // "—" = 根拠不足のため未評価（中立・グレー表示）
+  "—": "bg-zinc-100 text-zinc-500",
 };
 
 export function RatingBadge({ label, rating }: { label: string; rating: Rating }) {

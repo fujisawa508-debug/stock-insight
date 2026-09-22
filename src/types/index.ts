@@ -5,8 +5,13 @@
 // 現時点ではダミーデータ用の型だが、将来 Supabase 連携時も
 // この形をそのまま Repository の戻り値として使う想定。
 
-/** 成長性・割高感・収益性・財務などの評価レーティング */
-export type Rating = "◎" | "○" | "△" | "×";
+/**
+ * 成長性・割高感・収益性・財務などの評価レーティング。
+ * "—" は「根拠不足のため未評価」を表す（推測で◎○△×のいずれかを
+ * 決めない、という設計判断による。AI Provider・deriveXxxRating系の
+ * 判定ロジック参照）。
+ */
+export type Rating = "◎" | "○" | "△" | "×" | "—";
 
 export interface Theme {
   id: string;

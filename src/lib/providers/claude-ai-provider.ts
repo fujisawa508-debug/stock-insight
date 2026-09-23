@@ -10,12 +10,28 @@ import type { AiProvider, StockAnalysis, StockAnalysisInput } from "./ai-provide
 // 前提として説明文を書かせるだけ）。
 // 禁止ワードチェックは補助的なガードであり、主な防御はsystem prompt +
 // tool schemaによる出力制約側で行う。
+//
+// リトライ方針（一時的なエラーのみ、最大1回）:
+// - 対象: HTTP 429 / HTTP 5xx / ネットワークエラー（RetryableApiErrorとして
+//   分類する）。これらは呼び出しタイミング次第で成功しうる一時的な失敗。
+// - 対象外: 429以外の4xx（APIキー不正等の恒久的な設定ミス）、
+//   tool_useのparse error、summary/riskのvalidation error、禁止ワード
+//   検出。これらは何度呼び直しても同じ結果になるため、リトライしない。
+// - 2回とも失敗した場合は例外を投げる（呼び出し元のanalysis-repository.ts
+//   が既存通りdummy-data.tsへフォールバックする。analysis_set保存自体は
+//   失敗させない）。
+// - ログにはAPIキー・Authorizationヘッダ等の秘密情報を一切出力しない。
 
 const API_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
 const MODEL = "claude-sonnet-5";
+const RETRY_DELAY_MS = 500;
 
 const FORBIDDEN_WORDS = ["買い", "売り", "おすすめ", "推奨", "買う", "売る", "買うべき", "売るべき"];
+
+// HTTP 429 / 5xx / ネットワークエラーなど、一時的な失敗であることを表す。
+// このエラーが投げられた場合のみ1回リトライする。
+class RetryableApiError extends Error {}
 
 function getApiKey(): string {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -27,6 +43,10 @@ function getApiKey(): string {
 
 function containsForbiddenWord(text: string): boolean {
   return FORBIDDEN_WORDS.some((word) => text.includes(word));
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 const SYSTEM_PROMPT = `あなたは株式の公開データを整理・要約するアシスタントです。
@@ -78,11 +98,10 @@ function buildUserMessage(input: StockAnalysisInput): string {
 type AnthropicContentBlock = { type: string; input?: unknown };
 type AnthropicMessageResponse = { content: AnthropicContentBlock[] };
 
-export class ClaudeAiProvider implements AiProvider {
-  async analyzeStock(input: StockAnalysisInput): Promise<StockAnalysis> {
-    const apiKey = getApiKey();
-
-    const response = await fetch(API_URL, {
+async function callClaudeOnce(input: StockAnalysisInput, apiKey: string): Promise<StockAnalysis> {
+  let response: Response;
+  try {
+    response = await fetch(API_URL, {
       method: "POST",
       headers: {
         "x-api-key": apiKey,
@@ -111,27 +130,80 @@ export class ClaudeAiProvider implements AiProvider {
         tool_choice: { type: "tool", name: "record_stock_summary" },
       }),
     });
+  } catch (networkError) {
+    const message = networkError instanceof Error ? networkError.message : String(networkError);
+    throw new RetryableApiError(
+      `[claude-ai-provider] stockCode=${input.stockCode} ネットワークエラー: ${message}`
+    );
+  }
 
-    if (!response.ok) {
-      throw new Error(`[claude-ai-provider] Claude APIエラー: ${response.status} ${response.statusText}`);
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "(レスポンスボディ取得失敗)");
+    const message =
+      `[claude-ai-provider] stockCode=${input.stockCode} Claude APIエラー: ` +
+      `status=${response.status} statusText=${response.statusText} body=${errorBody.slice(0, 500)}`;
+
+    if (response.status === 429 || response.status >= 500) {
+      throw new RetryableApiError(message);
     }
+    // 429以外の4xx（APIキー不正・リクエスト形式不正等）は恒久的な設定ミスの
+    // 可能性が高く、リトライしても同じ結果になるため対象外とする。
+    throw new Error(message);
+  }
 
-    const body = (await response.json()) as AnthropicMessageResponse;
-    const toolUse = body.content?.find((block) => block.type === "tool_use");
+  const body = (await response.json()) as AnthropicMessageResponse;
+  const toolUse = body.content?.find((block) => block.type === "tool_use");
 
-    if (!toolUse || typeof toolUse.input !== "object" || toolUse.input === null) {
-      throw new Error("[claude-ai-provider] Claude応答からtool_useが取得できませんでした。");
+  if (!toolUse || typeof toolUse.input !== "object" || toolUse.input === null) {
+    throw new Error(
+      `[claude-ai-provider] stockCode=${input.stockCode} Claude応答からtool_useが取得できませんでした。`
+    );
+  }
+
+  const result = toolUse.input as { summary?: unknown; risk?: unknown };
+  if (typeof result.summary !== "string" || typeof result.risk !== "string") {
+    throw new Error(`[claude-ai-provider] stockCode=${input.stockCode} Claude応答の形式が不正です。`);
+  }
+
+  if (containsForbiddenWord(result.summary) || containsForbiddenWord(result.risk)) {
+    throw new Error(
+      `[claude-ai-provider] stockCode=${input.stockCode} Claude応答に禁止ワードが含まれていたため破棄しました。`
+    );
+  }
+
+  return { summary: result.summary, risk: result.risk };
+}
+
+export class ClaudeAiProvider implements AiProvider {
+  async analyzeStock(input: StockAnalysisInput): Promise<StockAnalysis> {
+    const apiKey = getApiKey();
+
+    try {
+      return await callClaudeOnce(input, apiKey);
+    } catch (error) {
+      if (!(error instanceof RetryableApiError)) {
+        console.error(
+          `[claude-ai-provider] stockCode=${input.stockCode} retry=対象外エラーのためリトライしません:`,
+          error
+        );
+        throw error;
+      }
+
+      console.error(
+        `[claude-ai-provider] stockCode=${input.stockCode} retry=1回だけ再試行します:`,
+        error
+      );
+      await sleep(RETRY_DELAY_MS);
+
+      try {
+        return await callClaudeOnce(input, apiKey);
+      } catch (retryError) {
+        console.error(
+          `[claude-ai-provider] stockCode=${input.stockCode} retry=再試行後も失敗しました:`,
+          retryError
+        );
+        throw retryError;
+      }
     }
-
-    const result = toolUse.input as { summary?: unknown; risk?: unknown };
-    if (typeof result.summary !== "string" || typeof result.risk !== "string") {
-      throw new Error("[claude-ai-provider] Claude応答の形式が不正です。");
-    }
-
-    if (containsForbiddenWord(result.summary) || containsForbiddenWord(result.risk)) {
-      throw new Error("[claude-ai-provider] Claude応答に禁止ワードが含まれていたため破棄しました。");
-    }
-
-    return { summary: result.summary, risk: result.risk };
   }
 }

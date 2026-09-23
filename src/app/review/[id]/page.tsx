@@ -3,16 +3,19 @@ import { getReviewData } from "@/lib/repositories/review-repository";
 import { ReviewNoteForm } from "@/components/ReviewNoteForm";
 
 // REVIEW（"/review/[id]"）
-// 役割: 過去の分析セットについて、分析時点の値・現在値・変化率・当時の判断・
-// 振り返りメモを表示する。
+// 役割: 過去の分析セットについて、分析時点の値・取得可能な最新価格・変化率・
+// 当時の判断・振り返りメモを表示する。
 //
 // データソース:
 // - 分析セット本体・分析時点の株価/指標・当時の判断は Supabase から取得する。
 // - 振り返りメモは review_notes テーブルから取得・編集・保存できる
 //   （1分析セットにつき1件。保存はactions.ts(Server Action)→
 //   review-repository.tsのsaveReviewNote()経由でservice_role upsertする）。
-// - 「現在値」は Market Data Provider(J-Quants) から実在銘柄コードのみ取得し、
-//   それ以外はダミー値を使う。
+// - 表示上「取得可能な最新価格」としているのは、Market Data Provider
+//   (J-Quants Freeプラン)が直近12週間のデータを返せず、実在銘柄コードの
+//   場合でも厳密な意味での「今の値」ではない場合があるため
+//   （ダミー銘柄コードは引き続きdummy-data.tsの固定値を使う）。
+//   「現在値」という表現は誤解を招くため使わない。
 export default async function ReviewPage({
   params,
 }: {
@@ -53,7 +56,7 @@ export default async function ReviewPage({
                 <div className="text-zinc-900">{row.priceAtAnalysis.toLocaleString()}円</div>
               </div>
               <div>
-                <div className="text-zinc-500">現在値</div>
+                <div className="text-zinc-500">取得可能な最新価格</div>
                 <div className="text-zinc-900">{row.currentPrice.toLocaleString()}円</div>
               </div>
             </div>

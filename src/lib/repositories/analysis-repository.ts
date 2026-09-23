@@ -290,6 +290,15 @@ function generateAnalysisSetId(themeId: string): string {
   return `${themeId}-${today}-${suffix}`;
 }
 
+const REPOST_SUFFIX = "（再保存）";
+
+// 既に「（再保存）」が付いているタイトルを再保存すると
+// 「Xxx（再保存）（再保存）」のように重複してしまうため、
+// 既に付いている場合は付け足さない。
+function buildRepostTitle(sourceTitle: string): string {
+  return sourceTitle.endsWith(REPOST_SUFFIX) ? sourceTitle : `${sourceTitle}${REPOST_SUFFIX}`;
+}
+
 // 現在表示中の分析セットを元に、新しい analysis_set / analysis_items /
 // stock_snapshots をSupabaseへ作成する。既存の行は一切変更しない。
 export async function createAnalysisSetFromExisting(
@@ -308,7 +317,7 @@ export async function createAnalysisSetFromExisting(
   const payload = {
     id: newId,
     theme_id: source.themeId,
-    title: `${source.title}（再保存）`,
+    title: buildRepostTitle(source.title),
     analyzed_at: capturedAt.slice(0, 10),
     items: resolvedItems.map((item) => ({
       stock_code: item.stockCode,

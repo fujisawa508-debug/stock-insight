@@ -8,6 +8,8 @@ import { isMarketDataCandidate, type MarketDataProvider } from "@/lib/providers/
 import { JQuantsMarketDataProvider } from "@/lib/providers/jquants-market-data-provider";
 import type { AiProvider, StockAnalysisInput } from "@/lib/providers/ai-provider";
 import { ClaudeAiProvider } from "@/lib/providers/claude-ai-provider";
+import type { NewsArticle, NewsProvider } from "@/lib/providers/news-provider";
+import { GoogleNewsRssProvider } from "@/lib/providers/google-news-rss-provider";
 import type { AnalysisSet, AnalysisSetItem, Rating } from "@/types";
 
 // SET画面向けRepository（STEP2: 最小構成 / STEP3: 保存機能を追加）。
@@ -34,6 +36,11 @@ import type { AnalysisSet, AnalysisSetItem, Rating } from "@/types";
 //   応答形式不正・禁止ワード検出等）は、summary/riskをdummy-data.tsの
 //   stockDetailの値へフォールバックする（ratingは元々AI非依存のため
 //   フォールバック対象にならない）。
+// - NewsProvider（Google News RSS）で取得した関連ニュースはAiProviderの
+//   入力に含める。取得失敗時は空配列のまま進め、保存処理全体は失敗
+//   させない（AI要約は「ニュース無し」の状態で数値のみから生成される）。
+//   使用したニュースはAI分析の再現性確保のため、sources テーブルへ
+//   analysis_itemの子として保存する（記事全文は保存しない）。
 // - 3テーブルへの書き込みは、PostgreSQL関数 create_analysis_set(jsonb) を
 //   1回呼ぶだけで行う（Repository側で個別にinsertしない）。この関数は
 //   1トランザクションとして実行され、途中で失敗すれば全体がロールバック
@@ -133,6 +140,8 @@ export async function getAnalysisSetById(id: string): Promise<AnalysisSet | unde
 
 const marketDataProvider: MarketDataProvider = new JQuantsMarketDataProvider();
 const aiProvider: AiProvider = new ClaudeAiProvider();
+const newsProvider: NewsProvider = new GoogleNewsRssProvider();
+const MAX_NEWS_ARTICLES = 3;
 
 export type CreateAnalysisSetResult = { ok: true; id: string } | { ok: false; error: string };
 
@@ -187,6 +196,7 @@ type ResolvedItem = {
   risk: string;
   price: number;
   priceDate: string | null;
+  news: NewsArticle[];
 };
 
 async function resolveItemForSave(item: AnalysisSetItem): Promise<ResolvedItem> {
@@ -220,7 +230,18 @@ async function resolveItemForSave(item: AnalysisSetItem): Promise<ResolvedItem> 
     valuation: deriveValuationRating(), // 業種ベンチマーク未接続のため常に"—"
   };
 
-  // 3. AI要約生成（summary/riskのみ。失敗時はdummy-data.tsへフォールバック）。
+  // 3. ニュース取得（失敗時は空配列のまま進める。保存全体は失敗させない）。
+  let news: NewsArticle[] = [];
+  try {
+    news = await newsProvider.getRecentNews(item.stockName, MAX_NEWS_ARTICLES);
+  } catch (error) {
+    console.error(
+      "[analysis-repository] NewsProviderからのニュース取得に失敗したため、ニュース無しで進めます:",
+      error
+    );
+  }
+
+  // 4. AI要約生成（summary/riskのみ。失敗時はdummy-data.tsへフォールバック）。
   let aiSummary = dummyDetail?.reason ?? "詳細分析は未接続のため未評価";
   let risk = dummyDetail?.risk ?? "詳細分析は未接続のため未評価";
 
@@ -234,6 +255,7 @@ async function resolveItemForSave(item: AnalysisSetItem): Promise<ResolvedItem> 
       roe: item.roe,
       profitYoy,
       ratings,
+      news,
     });
     aiSummary = analysis.summary;
     risk = analysis.risk;
@@ -258,6 +280,7 @@ async function resolveItemForSave(item: AnalysisSetItem): Promise<ResolvedItem> 
     risk,
     price,
     priceDate,
+    news,
   };
 }
 
@@ -302,6 +325,13 @@ export async function createAnalysisSetFromExisting(
       profit_yoy: item.profitYoy,
       captured_at: capturedAt,
       price_date: item.priceDate,
+      sources: item.news.map((article) => ({
+        title: article.title,
+        url: article.url,
+        published_at: article.publishedAt,
+        source: article.source,
+        snippet: article.snippet,
+      })),
     })),
   };
 

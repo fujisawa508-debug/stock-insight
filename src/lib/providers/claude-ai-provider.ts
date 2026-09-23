@@ -34,14 +34,31 @@ const SYSTEM_PROMPT = `あなたは株式の公開データを整理・要約す
 厳守事項:
 - 売買判断・投資推奨（買い/売り/おすすめ等）は絶対に出力しないこと。
 - 与えられた入力データに存在しない事実を創作・推測しないこと（決算内容・
-  ニュース・financialデータ等、渡されていない情報には一切触れないこと）。
+  financialデータ等、渡されていない情報には一切触れないこと）。
 - growth/profitability/financial/valuationの評価はすでに確定済みの値
   として渡される。あなたはこれらの評価を変更せず、その評価に至った
   数値的根拠を summary の中で簡潔に説明すること。
-- risk は、渡された数値（PER/PBR/ROE/前年比営業利益成長率）から直接
-  読み取れる注意点のみを1文で述べること。`;
+- risk は、渡された数値（PER/PBR/ROE/前年比営業利益成長率）および
+  ニュースが渡されていればその内容から直接読み取れる注意点のみを
+  1文で述べること。
+- 関連ニュースが渡された場合、そこに記載された内容の範囲でのみ言及
+  してよい。ニュースの見出し・抜粋に書かれていない事実を補完・推測
+  しないこと。
+- 関連ニュースが渡されていない、または0件の場合は、数値データのみを
+  根拠にすること（ニュースが無い旨を無理に触れる必要はない）。`;
 
 function buildUserMessage(input: StockAnalysisInput): string {
+  const newsSection =
+    input.news && input.news.length > 0
+      ? [
+          "関連ニュース（直近30日以内）:",
+          ...input.news.map(
+            (article, index) =>
+              `${index + 1}. [${article.publishedAt.slice(0, 10)}] ${article.title}（${article.source}）: ${article.snippet}`
+          ),
+        ].join("\n")
+      : "関連ニュース: なし";
+
   return [
     `銘柄コード: ${input.stockCode}`,
     `銘柄名: ${input.stockName}`,
@@ -52,7 +69,9 @@ function buildUserMessage(input: StockAnalysisInput): string {
     `前年比営業利益成長率: ${input.profitYoy}%`,
     `確定済み評価: 成長性=${input.ratings.growth} / 収益性=${input.ratings.profitability} / ` +
       `財務健全性=${input.ratings.financial} / 割高感=${input.ratings.valuation}`,
-    "上記の数値と確定済み評価だけを根拠に、record_stock_summaryツールでsummaryとriskを出力してください。",
+    newsSection,
+    "上記の数値・確定済み評価・関連ニュース（あれば）だけを根拠に、" +
+      "record_stock_summaryツールでsummaryとriskを出力してください。",
   ].join("\n");
 }
 

@@ -1,4 +1,5 @@
 import type { Rating } from "@/types";
+import type { NewsArticle } from "./news-provider";
 
 // AiProvider（外部のAI要約APIを吸収するProvider層の入口）。
 //
@@ -9,6 +10,8 @@ import type { Rating } from "@/types";
 // - AIの役割は summary（要約）と risk（注意点）の文章生成に限定する。
 //   入力に無い事実の創作・推測、売買判断/投資推奨は行わせない
 //   （具体的な制約はProvider実装のsystem prompt側で強制する）。
+// - newsを渡す場合も同様に、記事に書かれていない事実を補完・推測
+//   させない（NewsProviderが返した内容の範囲でのみ言及させる）。
 
 export interface StockAnalysisInput {
   stockCode: string;
@@ -36,6 +39,12 @@ export interface StockAnalysisInput {
     operatingCashFlow: number;
     cashAndEquivalents: number;
   };
+  /**
+   * NewsProviderが取得した関連ニュース（直近30日程度、最大数件）。
+   * 空配列は「ニュースが0件だった」ことを表す（未接続とは区別しない。
+   * NewsProvider自体が呼び出せなかった場合も、呼び出し元が空配列を渡す）。
+   */
+  news?: NewsArticle[];
 }
 
 export interface StockAnalysis {
